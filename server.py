@@ -1,9 +1,11 @@
+# server.py
 from flask import Flask, request, jsonify
 import os
 from dotenv import load_dotenv
 from solver import solve_quiz
+import traceback
 
-load_dotenv()  # loads .env
+load_dotenv()  # loads .env from project root
 
 app = Flask(__name__)
 SECRET = os.getenv("TDS_SECRET")
@@ -14,16 +16,25 @@ def handle():
     if not data:
         return jsonify({"error": "Invalid JSON"}), 400
 
+    if SECRET is None:
+        return jsonify({"error": "Server misconfigured: no secret"}), 500
+
     if data.get("secret") != SECRET:
         return jsonify({"error": "Forbidden"}), 403
 
-    quiz_url = data.get("url")
     email = data.get("email")
+    url = data.get("url")
+    if not email or not url:
+        return jsonify({"error": "Missing fields (email/url)"}), 400
 
-    result = solve_quiz(email, SECRET, quiz_url)
-    return jsonify(result), 200
+    try:
+        result = solve_quiz(email, SECRET, url)
+        # solver returns JSON-like dict
+        return jsonify(result), 200
+    except Exception as e:
+        tb = traceback.format_exc()
+        print("ERROR in solve_quiz:", tb)
+        return jsonify({"error": "Internal server error", "detail": str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(port=8000)
-
-
+    app.run(host="0.0.0.0", port=8000)
